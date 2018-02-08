@@ -33,6 +33,8 @@ WEAPON *gpActiveSel;	// NULL means off, 1 means just the menu bar, otherwise
 						// this points to the active weapon menu item
 WEAPON *gpLastSel;		// Last weapon menu selection 
 
+WEAPON *currentSel;		// Current selected weapon
+
 client_sprite_t *GetSpriteList(client_sprite_t *pList, const char *psz, int iRes, int iCount);
 
 WeaponsResource gWR;
@@ -421,12 +423,14 @@ void WeaponsResource :: SelectSlot( int iSlot, int fAdvance, int iDirection )
 		return;
 	}
 
-	if ( iSlot > MAX_WEAPON_SLOTS )
+	if ( iSlot < 0 || iSlot > MAX_WEAPON_SLOTS )
 		return;
 
+	// if the player is dead, or has hide HUD on
 	if ( gHUD.m_fPlayerDead || gHUD.m_iHideHUDDisplay & ( HIDEHUD_WEAPONS | HIDEHUD_ALL ) )
 		return;
 
+	// if the player doesn't have the suit
 	if (!(gHUD.m_iWeaponBits & (1<<(WEAPON_SUIT)) ))
 		return;
 
@@ -436,22 +440,32 @@ void WeaponsResource :: SelectSlot( int iSlot, int fAdvance, int iDirection )
 	WEAPON *p = NULL;
 	bool fastSwitch = CVAR_GET_FLOAT( "hud_fastswitch" ) != 0;
 
+	// gpActiveSel
+	// gpActiveSel 
+	// iSlot != gpActiveSel
 	if ( (gpActiveSel == NULL) || (gpActiveSel == (WEAPON *)1) || (iSlot != gpActiveSel->iSlot) )
 	{
 		PlaySound( "common/wpn_hudon.wav", 1 );
 		p = GetFirstPos( iSlot );
 
 		if ( p && fastSwitch ) // check for fast weapon switch mode
-		{
-			// if fast weapon switch is on, then weapons can be selected in a single keypress
-			// but only if there is only one item in the bucket
-			WEAPON *p2 = GetNextActivePos( p->iSlot, p->iSlotPos );
-			if ( !p2 )
-			{	// only one active item in bucket, so change directly to weapon
-				ServerCmd( p->szName );
-				g_weaponselect = p->iId;
-				return;
+		{		
+			// if we already have this weapon select, move on to the next.
+			if (currentSel && currentSel->iSlot == iSlot)
+			{
+				p = GetNextActivePos( currentSel->iSlot, currentSel->iSlotPos );
+
+				// if there was no next active pos, revert to the first in the slot
+				if ( !p )
+				{
+					p = GetFirstPos( iSlot );
+				}
 			}
+
+			ServerCmd( p->szName );
+			g_weaponselect = p->iId;
+			currentSel = p;
+			return;
 		}
 	}
 	else
